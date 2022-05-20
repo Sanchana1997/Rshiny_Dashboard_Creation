@@ -1,0 +1,426 @@
+---
+title: "TimeSeriesModel"
+output: pdf_document
+date: '2022-04-16'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r}
+library('tseries') # time series analysis
+library('forecast') # time series analysis
+library('prophet') # time series analysis
+library('timetk') # time series analysis
+library(AMR)
+library(data.table)
+library(DT)
+library(ggridges)
+library(lubridate)
+library(plotly)
+library(qicharts2)
+library(rintrojs)
+library(shiny)
+library(shinyBS)
+library(shinycssloaders)
+library(shinydashboard)
+library(shinyjs)
+library(shinyWidgets)
+library(survival)
+library(ggpubr)
+library(survminer)
+library(tidyverse)
+library(viridis)
+library(zoo) 
+library(gapminder)
+library(transformr)
+library(gganimate)
+library(readr)
+```
+
+
+
+```{r}
+
+gapminder_train <- gapminder %>% filter(year<= 1990)
+gapminder_valid <- gapminder %>% filter(year > 1991)
+
+```
+
+```{r}
+arima.fit <- auto.arima(tsclean(ts(gapminder_train$gdpPercap, frequency = 7)),
+                        stepwise = FALSE, approximation = FALSE)
+```
+
+```{r}
+arima_visits <- arima.fit %>% forecast(h = 2010, level = c(50,95))
+```
+
+```{r}
+arima_visits %>%
+  autoplot +
+  geom_line(aes(as.integer(10)/7, gdpPercap), data = gapminder_valid, color = "grey40") +
+  labs(x = "Time [weeks]", y = "log1p visitors vs auto.arima predictions")
+```
+```{r}
+df1 <- df[, c('Year', 'Trade (% of GDP)','region')]
+names(df1)[2] <- 'Trade_GDP'
+df1 <- df1 %>% drop_na(Trade_GDP)
+df1 <- ddply(df1,"Year",numcolwise(sum))
+model <- lm(Year ~ Trade_GDP + region, df1)
+summary(model)
+
+```
+```{r}
+gapminderModel <- mutate(df1,
+                    mod_pred = predict(model),
+                    mod_resid = resid(model))
+```
+
+```{r}
+ggplot(gapminderModel, aes(x = gdpPercap, y = mod_pred, color = continent)) +
+  geom_point(aes(y = lifeExp),alpha=0.5) +
+  geom_line()
+```
+```{r}
+ggplot(gapminderModel, aes(x = mod_pred, y = mod_resid, color = continent)) +
+  geom_point()
+```
+```{r}
+library(tidyverse)
+
+#Loading Data
+world <- read.csv("D:/Priya/IE6600 Project/World Project/www/data.csv", na.strings="")
+
+#Changing COlumn Name
+names(world)<-c("Indicator","Ind_Code","Country","CODE",rep(1960:2020,each=1))
+
+#Wide to long format
+world<-world %>%
+  gather(Year,value,-c(Indicator,Ind_Code,Country,CODE))
+
+
+#Removing irrelevant column
+world<-subset(world,select=-Ind_Code)
+world$value <-as.numeric(world$value)
+
+#Long to wide format
+df<-world %>%
+  pivot_wider(names_from = Indicator,values_from = value)
+
+
+
+df<-subset(df,select=-c(64,65,66))%>%
+  rename_all(function(x) gsub(" ", "_", x))
+
+
+head(df)
+```
+
+```{r}
+df$continent <- countrycode(sourcevar = df[, "Country"],
+                            origin = "country.name",
+                            destination = "continent")
+```
+
+```{r}
+world <- read.csv("D:/Priya/IE6600 Project/World Project/www/data.csv", na.strings="")
+GH_data <- read.csv("D:/Priya/IE6600 Project/World Project/www/GH_data.csv", na.strings="")
+continent <- read.csv("D:/Priya/IE6600 Project/World Project/www/continents2.csv", na.strings="")
+
+#merging green house emission data
+world <-rbind(world,GH_data)
+
+#Removing rows with country as 'NA'
+world<-world %>% drop_na(Country.Name)
+
+#Changing Column Name
+names(world)<-c("Indicator","Ind_Code","Country","CODE",rep(1960:2020,each=1))
+world <- left_join(world,continent[,c( "alpha.3","region")], by = c("CODE"= "alpha.3")) %>% distinct()
+
+#Wide to long format
+world<-world %>%
+  gather(Year,value,-c(Indicator,Ind_Code,Country,CODE,region))
+
+
+#Removing irrelevant column
+world<-subset(world,select=-Ind_Code)
+world$value <-as.numeric(world$value)
+
+#Long to wide format
+df<-world %>%
+  pivot_wider(names_from = Indicator,values_from = value)
+
+```
+
+```{r}
+df$Year <- as.numeric(df$Year)
+head(df)
+```
+```{r}
+data<-subset(df, df$Year>=2000 & df$Year<=2020)
+head(data)
+```
+
+```{r}
+
+gapminder77 <- filter(df, Year==2000)
+model <- lm(`Population growth (annual %)`~`Population, total`, gapminder77)
+
+gapminderModel <- mutate(ungroup(gapminder77),
+                         mod_pred = predict(model),
+                         mod_resid = resid(model))
+
+ggplot(gapminderModel, aes(x = `Population growth (annual %)`, y = mod_pred, color = region)) +
+  geom_point(aes(y = `Population, total`),alpha=0.5) +
+  geom_line()
+
+```
+
+
+
+
+```{r}
+gapminder77
+```
+
+
+```{r}
+y <- data$`Life_expectancy_at_birth,_total_(years)`
+x <- data$`GDP_per_capita_(current_US$)`
+    
+model <- lm(`Life_expectancy_at_birth,_total_(years)`~`GDP_per_capita_(current_US$)`, data)
+DataModel <- mutate(ungroup(df),mod_pred = predict(model),mod_resid = resid(model))
+    
+    output$box_los1 <- renderPlotly({
+     p<- ggplot(df, aes(x = df$`GDP per capita (current US$)`, y = mod_pred)) +
+        geom_point(aes(y = df$`Life expectancy at birth, total (years)`),alpha=0.5) +
+        geom_line()
+     box_los1<-ggplotly(p)
+    })
+```
+
+```{r}
+colnames(df)
+```
+```{r}
+dataDen <- df %>%
+      mutate(`Life expectancy at birth, total (years)`=round(`Life expectancy at birth, total (years)`,1)) %>%
+      mutate(`Year` = as.integer(`Year`))
+
+ plot_ly(df)%>%
+                       add_lines(
+                         x=df$Year,
+                         y=df$`Industry (including construction), value added (% of GDP)`,
+                         frame=NULL,
+                         color =factor(df$region),
+                         line=list(simplify=F)) %>%
+                         layout(
+                           title="plot_title",
+                           xaxis=list(title="xtitle"),
+                           yaxis=list(title="ytitle"),
+                           paper_bgcolor='rgba(0,0,0,0)',
+                           plot_bgcolor='rgba(0,0,0,0)'
+                         )
+```
+```{r}
+dataDen <- df %>%
+      #mutate(`Mortality rate, under-5 (per 1,000 live births)`=round(`Mortality rate, under-5 (per 1,000 live births)`/100000,1)) %>%
+      mutate(`Year` = as.integer(`Year`))
+
+ggplot(dataDen, aes(x = dataDen$`Mortality rate, under-5 (per 1,000 live births)`, fill = factor(`region`))) + 
+          geom_density(alpha = 0.5) +
+          scale_fill_brewer(palette = "Set2") +
+          scale_x_log10()+
+          transition_time(`Year`) +
+          labs(title = "plot_title",
+               x = "xtitle",
+               y = "ytitle",
+               fill = NULL)+
+          guides(fill=guide_legend(title="legend_title"))+
+          theme(panel.grid.major.x = element_blank())+
+          theme(
+            panel.grid.minor = element_blank(),
+            panel.grid.major = element_blank(),
+            panel.background = element_blank(),
+            plot.background = element_blank(),
+            legend.background =element_blank())
+```
+```{r}
+df1<-df%>%
+  group_by(region,Year)%>%
+  summarise(mean_pop=mean(df$`Industry (including construction), value added (% of GDP)`,na.rm = TRUE))%>%
+  summarise(FertilityRate=mean(df$`Fertility rate, total (births per woman)`),na.rm = TRUE)%>%
+   summarise(MortalityRate=mean(df$`Mortality rate, infant (per 1,000 live births)`),na.rm = TRUE)
+```
+
+
+```{r}
+fig <- plot_ly(df)
+fig <- fig %>% add_bars(
+    x = df$region,
+    y = df$`Imports of goods and services (% of GDP)`,
+    base=0,
+    marker = list(
+      color = '#bcbd22'
+    ),
+    name = 'Import'
+  )
+fig <- fig %>% add_bars(
+    x =df$region,
+    y =df$`Exports of goods and services (% of GDP)`,
+    base = 0,
+    marker = list(
+      color = '#e377c2'
+    ),
+    name = 'Export'
+  )
+
+
+fig
+```
+
+
+```{r}
+df$Year <- as.integer(df$Year) 
+
+df1 <- df %>% 
+      group_by(region, Year) %>% 
+      summarise(mean_LifeExp = mean(df$`Trade (% of GDP)`, na.rm = TRUE))
+
+p <- ggplot(df1,
+       aes(Year,log(mean_LifeExp), group = region, color = factor(region))) +
+  geom_line(size=1) +
+  scale_color_viridis_d() +
+  labs(x = "Day of Month", y = "Temperature") +
+  theme(legend.position = "top")
+p <- p + transition_reveal(Year)
+p
+
+```
+```{r}
+library(tidyverse)
+
+#Loading Data
+world <- read.csv("D:/Priya/IE6600 Project/Project/World Project/www/data.csv", na.strings="")
+GH_data <- read.csv("D:/Priya/IE6600 Project/Project/World Project/www/GH_data.csv", na.strings="")
+continent <- read.csv("/www/continents2.csv", na.strings="")
+
+#merging green house emission data
+world <-rbind(world,GH_data)
+
+#Removing rows with country as 'NA'
+world<-world %>% drop_na(Country.Name)
+
+#Changing Column Name
+names(world)<-c("Indicator","Ind_Code","Country","CODE",rep(1960:2020,each=1))
+world <- left_join(world,continent[,c( "alpha.3","region")], 
+                   by = c("CODE"= "alpha.3")) %>% distinct()
+
+#Wide to long format
+world<-world %>%
+  gather(Year,value,-c(Indicator,Ind_Code,Country,CODE,region))
+
+
+#Removing irrelevant column
+world<-subset(world,select=-Ind_Code)
+world$value <-as.numeric(world$value)
+
+#Long to wide format
+df<-world %>%
+  pivot_wider(names_from = Indicator,values_from = value)
+
+df<- df %>% 
+      rename(pop = `Population, total`,
+             lifeExp = `Life expectancy at birth, total (years)`,
+             imports = `Imports of goods and services (% of GDP)`,
+             exports = `Exports of goods and services (% of GDP)`,
+             fertility=`Fertility rate, total (births per woman)`
+             )
+
+
+write_csv(df,"D:/Priya/IE6600 Project/Project/World Project/www/final_csv.csv")
+
+#model <- lm(`pop`~`lifeExp`, df)
+#DataModel <- mutate(ungroup(df),mod_pred = predict(model),mod_resid =resid(model))
+
+```
+```{r}
+fig <- plot_ly(df, y = df$`Poverty headcount ratio at national poverty lines (% of population)`, color = df$region, type = "box")
+fig <- fig %>% layout(
+      title = plot_title,
+      xaxis = list(title="xtitle" ),
+      yaxis=list(title="ytitle"),
+      legend = list(title=list(text="legend_title")),
+      paper_bgcolor='rgba(0,0,0,0)',
+      plot_bgcolor='rgba(0,0,0,0)'
+    )
+fig
+```
+
+```{r}
+df11 <- df[, c('Year', 'Trade (% of GDP)')]
+names(df11)[2] <- 'Trade_GDP'
+df11 <- df11 %>% drop_na(Trade_GDP)
+df11 <- ddply(df11,"Year",numcolwise(sum))
+
+################################################
+#Declaring Y as time series data 
+################################################
+Y <- ts(df11[,2], start=c(1960), end=c(2018), frequency=1)
+
+################################################
+#Preliminary analysis
+################################################
+# Time plot 
+autoplot(Y)+ ggtitle("Time Plot :Trade(% of GDP)")+ ylab("Trade")
+
+################################################
+# Data has trend. Investigate transformation
+################################################
+DY <- diff(Y)
+
+# Time plot of differenced data
+autoplot(DY)+ ggtitle("Time Plot :Trade(% of GDP)")+ ylab("Trade")
+
+#Fit on ETS model #Residual - 30.9406
+fit_ets <- ets(Y)
+print(summary(fit_ets))
+checkresiduals(fit_ets)
+
+#Fit on Arima model #Residual - 30.05661
+fit_arima <- auto.arima(Y, d=1, stepwise = FALSE,approximation = FALSE, trace = TRUE)
+print(summary(fit_arima))
+ModelPlot<-checkresiduals(fit_arima)
+ModelPlot
+
+#################
+#Forecast with arima model
+###################
+forst <- forecast(fit_arima, h= 15)
+Modelplot <- autoplot(forst, include = 60)
+modelPlot<-ggplotly(Modelplot)
+
+```
+
